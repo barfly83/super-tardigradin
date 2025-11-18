@@ -147,7 +147,7 @@ class MainScene extends Phaser.Scene {
     this.player.body.setSize(bodyWidth, bodyHeight);
     this.player.body.setOffset(20 * 0.6, 20 * 0.6);
 
-    // offset 10px
+    // offset 10 px
     this.player.y = groundPlatform.y - groundPlatform.displayHeight / 2 - bodyHeight / 2 - 10;
 
     this.physics.add.collider(this.player, this.platforms);
