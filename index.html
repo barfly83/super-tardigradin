@@ -133,22 +133,24 @@ class MainScene extends Phaser.Scene {
 	this.platforms.create(2200, 275, 'ground');
 	this.platforms.create(2600, 165, 'ground');
 
+    // --- PLAYER --- 
     const groundPlatform = this.platforms.getChildren().find(p => p.y === 580);
+    const groundTop = groundPlatform.y - groundPlatform.displayHeight / 2;
 
-    // --- PLAYER ---
-    this.player = this.physics.add.sprite(100, 0, 'playerR');
+    this.player = this.physics.add.sprite(100, 0, 'playerR'); // y temporaneo
     this.player.setScale(0.6);
     this.player.setBounce(0.1);
     this.player.setCollideWorldBounds(true);
     this.player.facing = 'right';
 
+    // Body corretto rispetto alla scala
     const bodyWidth = 60 * 0.6;
     const bodyHeight = 90 * 0.6;
     this.player.body.setSize(bodyWidth, bodyHeight);
     this.player.body.setOffset(20 * 0.6, 20 * 0.6);
 
-    // offset 10 px
-    this.player.y = groundPlatform.y - groundPlatform.displayHeight / 2 - bodyHeight / 2 - 10;
+    // Posiziona player correttamente sul terreno
+    this.player.y = groundTop - bodyHeight / 2;
 
     this.physics.add.collider(this.player, this.platforms);
 
@@ -177,19 +179,17 @@ class MainScene extends Phaser.Scene {
     for (let i = numAlt; i < totalEnemies; i++) textures.push('enemy');
     Phaser.Utils.Array.Shuffle(textures);
 
-    // Nemici su piattaforme alte
     highPlatforms.forEach((platform, i) => {
       const tex = textures.shift();
       let e = this.enemies.create(600 + i * 300, 0, tex);
       e.setScale(0.12);
-      e.body.setSize(e.width * 0.12, e.height * 0.12);
-      // offset 10 px
-      e.y = platform.y - platform.displayHeight / 2 - e.body.height / 2 - 10;
+      let platformTop = platform.y - platform.displayHeight / 2;
+      e.y = platformTop - e.displayHeight / 2;
       e.setVelocityX(100);
       e.setCollideWorldBounds(true);
     });
 
-    // Nemici a terra
+    const groundY = groundTop;
     this.groundEnemies = [
       this.enemies.create(2400, 0, textures.shift()),
       this.enemies.create(2800, 0, textures.shift())
@@ -197,9 +197,7 @@ class MainScene extends Phaser.Scene {
 
     this.groundEnemies.forEach(e => {
       e.setScale(0.12);
-      e.body.setSize(e.width * 0.12, e.height * 0.12);
-      // offset 10 px
-      e.y = groundPlatform.y - groundPlatform.displayHeight / 2 - e.body.height / 2 - 10;
+      e.y = groundY - e.displayHeight / 2;
       e.setCollideWorldBounds(true);
       e.homeX = e.x;
       e.patrolRange = 80;
@@ -208,6 +206,8 @@ class MainScene extends Phaser.Scene {
 
     this.physics.add.collider(this.enemies, this.platforms);
     this.physics.add.overlap(this.player, this.enemies, this.playerVsEnemy, null, this);
+
+    // --- COLLISIONE BULLETS ---
     this.physics.add.overlap(this.bullets, this.enemies, this.bulletHitsEnemy, null, this);
 
     // Stelle
@@ -233,7 +233,7 @@ class MainScene extends Phaser.Scene {
   update() {
     const p = this.player.body;
 
-    // Gamepad
+    // --- Gamepad ---
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
     let pad = null;
     for (let gp of pads) if (gp && gp.connected) pad = gp;
@@ -251,7 +251,7 @@ class MainScene extends Phaser.Scene {
       if (pad.buttons[1].pressed) fire = true;
     }
 
-    // Movimento + animazioni
+    // --- Movimento + Animazioni ---
     if (left) {
       p.setVelocityX(-220);
       this.player.facing = 'left';
@@ -268,24 +268,24 @@ class MainScene extends Phaser.Scene {
       else this.player.setTexture('playerL');
     }
 
-    // Salto
+    // --- Salto ---
     if (jump && p.blocked.down) {
       p.setVelocityY(-500);
       this.jumpSound.play();
     }
 
-    // Sparo
+    // --- Sparo ---
     if (fire && this.time.now > this.lastFired + 300) {
       const dir = this.player.facing === 'right' ? 1 : -1;
       const bullet = this.bullets.create(this.player.x + dir * 40, this.player.y, 'bullet');
       bullet.setVelocityX(500 * dir);
       bullet.setScale(0.3);
       bullet.setCollideWorldBounds(false);
-      bullet.body.allowGravity = false;
+      bullet.body.allowGravity = false; // evita di far "volare" il player
       this.lastFired = this.time.now;
     }
 
-    // Nemici alte piattaforme
+    // --- Nemici alte piattaforme ---
     this.enemies.children.iterate(e => {
       if (!this.groundEnemies.includes(e)) {
         if (e.body.blocked.left) e.setVelocityX(100);
@@ -293,13 +293,13 @@ class MainScene extends Phaser.Scene {
       }
     });
 
-    // Nemici terreno
+    // --- Nemici terreno ---
     this.groundEnemies.forEach(e => {
       if (e.x < e.homeX - e.patrolRange) e.setVelocityX(50);
       else if (e.x > e.homeX + e.patrolRange) e.setVelocityX(-50);
     });
 
-    // Vittoria
+    // --- Vittoria ---
     if (this.player.x > this.levelWidth - 100) {
       this.victorySound.play();
       this.scene.start('WinScene', { score: this.score });
