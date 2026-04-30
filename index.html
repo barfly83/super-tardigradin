@@ -89,6 +89,7 @@ class MainScene extends Phaser.Scene {
     this.load.image('enemy', 'mostro.png');
     this.load.image('enemyAlt', 'mostro_01.png');
     this.load.image('enemy2', 'mostro_02.png');
+    this.load.image('enemy3', 'mostro_03.png');
 
     // Player
     this.load.image('playerR', 'tardigrado_R_00.png');
@@ -174,8 +175,8 @@ class MainScene extends Phaser.Scene {
     const totalEnemies = highPlatforms.length + 2;
     const numAlt = Math.floor(totalEnemies / 2);
 
-    let enemyTex1 = this.level === 1 ? 'enemy' : 'enemyAlt';
-    let enemyTex2 = this.level === 1 ? 'enemyAlt' : 'enemy2';
+    let enemyTex1 = this.level === 1 ? 'enemy' : 'enemy2';
+    let enemyTex2 = this.level === 1 ? 'enemyAlt' : 'enemy3';
 
     const textures = [];
     for (let i = 0; i < numAlt; i++) textures.push(enemyTex1);
