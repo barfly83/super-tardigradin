@@ -53,22 +53,29 @@ class BootScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     const startText = this.add.text(this.scale.width / 2, 380,
-      'Clicca o premi un tasto per iniziare',
-      { fontSize: '22px', fill: '#ffffff', fontFamily: 'monospace' }
-    ).setOrigin(0.5);
+		'Clicca o premi un tasto per iniziare',
+		{ fontSize: '22px', fill: '#ffffff', fontFamily: 'monospace' }
+		).setOrigin(0.5);
 
-    this.tweens.add({
-      targets: startText,
-      alpha: { from: 1, to: 0.3 },
-      duration: 1000,
-      yoyo: true,
-      repeat: -1
-    });
+	this.tweens.add({
+		targets: startText,
+		alpha: { from: 1, to: 0.3 },
+		duration: 1000,
+		yoyo: true,
+		repeat: -1
+	});
+
+	// Nuova riga istruzioni controlli
+	this.add.text(this.scale.width / 2, 420,
+	'Spacebar per saltare, Alt per sparare, oppure usa il gamepad',
+	{ fontSize: '18px', fill: '#ffdd88', fontFamily: 'monospace' }
+	).setOrigin(0.5);
+
 
     const unlockAudio = () => {
       if (this.sound.context.state === 'suspended') this.sound.context.resume();
       this.sound.play('start');
-      this.scene.start('MainScene', { level: 1, lives: 3, score: 0 });
+      this.scene.start('MainScene');
     };
 
     this.input.once('pointerdown', unlockAudio);
@@ -82,13 +89,10 @@ class MainScene extends Phaser.Scene {
   preload() {
     this.load.image('sky', 'sky.png');
     this.load.image('ground', 'platform_v1.png');
-    this.load.image('sky_v2', 'sky_v2.png');
-    this.load.image('ground_v2', 'platform_v2.png');
 
     // Nemici
     this.load.image('enemy', 'mostro.png');
     this.load.image('enemyAlt', 'mostro_01.png');
-    this.load.image('enemy2', 'mostro_02.png');
 
     // Player
     this.load.image('playerR', 'tardigrado_R_00.png');
@@ -105,12 +109,10 @@ class MainScene extends Phaser.Scene {
   init(data) {
     this.lives = data.lives ?? 3;
     this.score = data.score ?? 0;
-    this.level = data.level ?? 1;
   }
 
   create() {
-    let bgKey = this.level === 1 ? 'sky' : 'sky_v2';
-    const bg = this.add.image(0, 0, bgKey).setOrigin(0).setScrollFactor(0);
+    const bg = this.add.image(0, 0, 'sky').setOrigin(0).setScrollFactor(0);
     bg.displayWidth = this.scale.width;
     bg.displayHeight = this.scale.height;
     bg.setDepth(-10);
@@ -125,17 +127,16 @@ class MainScene extends Phaser.Scene {
     this.enemySound = this.sound.add('enemy');
 
     // Piattaforme
-    let groundKey = this.level === 1 ? 'ground' : 'ground_v2';
     this.platforms = this.physics.add.staticGroup();
     for (let x = 0; x < this.levelWidth; x += 400)
-      this.platforms.create(x, 580, groundKey).setScale(2).refreshBody();
+      this.platforms.create(x, 580, 'ground').setScale(2).refreshBody();
 
-    this.platforms.create(600, 440, groundKey);
-    this.platforms.create(900, 330, groundKey);
-    this.platforms.create(1300, 222, groundKey);
-    this.platforms.create(1700, 385, groundKey);
-    this.platforms.create(2200, 275, groundKey);
-    this.platforms.create(2600, 165, groundKey);
+    this.platforms.create(600, 440, 'ground');
+    this.platforms.create(900, 330, 'ground');
+    this.platforms.create(1300, 222, 'ground');
+    this.platforms.create(1700, 385, 'ground');
+    this.platforms.create(2200, 275, 'ground');
+    this.platforms.create(2600, 165, 'ground');
 
     // Player
     const groundPlatform = this.platforms.getChildren().find(p => p.y === 580);
@@ -174,12 +175,9 @@ class MainScene extends Phaser.Scene {
     const totalEnemies = highPlatforms.length + 2;
     const numAlt = Math.floor(totalEnemies / 2);
 
-    let enemyTex1 = this.level === 1 ? 'enemy' : 'enemyAlt';
-    let enemyTex2 = this.level === 1 ? 'enemyAlt' : 'enemy2';
-
     const textures = [];
-    for (let i = 0; i < numAlt; i++) textures.push(enemyTex1);
-    for (let i = numAlt; i < totalEnemies; i++) textures.push(enemyTex2);
+    for (let i = 0; i < numAlt; i++) textures.push('enemyAlt');
+    for (let i = numAlt; i < totalEnemies; i++) textures.push('enemy');
     Phaser.Utils.Array.Shuffle(textures);
 
     // Nemici piattaforme alte
@@ -243,15 +241,6 @@ class MainScene extends Phaser.Scene {
     // UI
     this.uiText = this.add.text(16, 16, '', { fontSize: '20px', fill: '#fff' }).setScrollFactor(0).setDepth(1000);
     this.updateUI();
-
-    // Level Title
-    this.add.text(this.scale.width / 2, 40, 'LIVELLO ' + this.level, { 
-      fontSize: '32px', 
-      fill: '#ffffff', 
-      fontFamily: 'monospace',
-      stroke: '#000000',
-      strokeThickness: 4
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(1000);
 
     // Camera
     this.cameras.main.setBounds(0, 0, this.levelWidth, this.scale.height);
@@ -329,11 +318,7 @@ class MainScene extends Phaser.Scene {
     // Vittoria
     if (this.player.x > this.levelWidth - 100) {
       this.victorySound.play();
-      if (this.level === 1) {
-        this.scene.start('MainScene', { level: 2, lives: this.lives, score: this.score });
-      } else {
-        this.scene.start('WinScene', { score: this.score });
-      }
+      this.scene.start('WinScene', { score: this.score });
     }
   }
 
@@ -398,10 +383,14 @@ class GameOverScene extends Phaser.Scene {
   constructor() { super('GameOver'); }
   create(data) {
     this.sound.play('gameover');
-    this.add.text(this.scale.width / 2, 250, '💀 GAME OVER 💀', { fontSize: '50px', fill: '#ff4444' }).setOrigin(0.5);
+    this.add.text(this.scale.width / 2, 250, '💀 GAME OVER 💀', { 
+		fontSize: '50px', 
+		fill: '#ff4444', 
+		padding: { top: 20, bottom: 20 } 
+	}).setOrigin(0.5, 0.5);
     this.add.text(this.scale.width / 2, 320, 'Punteggio: ' + data.score, { fontSize: '24px', fill: '#fff' }).setOrigin(0.5);
     this.add.text(this.scale.width / 2, 400, 'Premi SPAZIO per ricominciare', { fontSize: '20px', fill: '#aaa' }).setOrigin(0.5);
-    this.input.keyboard.once('keydown-SPACE', () => this.scene.start('MainScene', { level: 1, lives: 3, score: 0 }));
+    this.input.keyboard.once('keydown-SPACE', () => this.scene.start('MainScene', { lives: 3, score: 0 }));
   }
 }
 
@@ -412,7 +401,7 @@ class WinScene extends Phaser.Scene {
     this.add.text(this.scale.width / 2, 250, '🎉 HAI VINTO! 🎉', { fontSize: '40px', fill: '#44ff44' }).setOrigin(0.5);
     this.add.text(this.scale.width / 2, 320, 'Punteggio: ' + data.score, { fontSize: '24px', fill: '#fff' }).setOrigin(0.5);
     this.add.text(this.scale.width / 2, 400, 'Premi SPAZIO per ricominciare', { fontSize: '20px', fill: '#aaa' }).setOrigin(0.5);
-    this.input.keyboard.once('keydown-SPACE', () => this.scene.start('MainScene', { level: 1, lives: 3, score: 0 }));
+    this.input.keyboard.once('keydown-SPACE', () => this.scene.start('MainScene', { lives: 3, score: 0 }));
   }
 }
 

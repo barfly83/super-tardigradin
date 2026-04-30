@@ -68,7 +68,7 @@ class BootScene extends Phaser.Scene {
     const unlockAudio = () => {
       if (this.sound.context.state === 'suspended') this.sound.context.resume();
       this.sound.play('start');
-      this.scene.start('MainScene', { level: 1, lives: 3, score: 0 });
+      this.scene.start('MainScene');
     };
 
     this.input.once('pointerdown', unlockAudio);
@@ -82,17 +82,16 @@ class MainScene extends Phaser.Scene {
   preload() {
     this.load.image('sky', 'sky.png');
     this.load.image('ground', 'platform_v1.png');
-    this.load.image('sky_v2', 'sky_v2.png');
-    this.load.image('ground_v2', 'platform_v2.png');
 
     // Nemici
     this.load.image('enemy', 'mostro.png');
     this.load.image('enemyAlt', 'mostro_01.png');
-    this.load.image('enemy2', 'mostro_02.png');
 
-    // Player
+    // Player fermo
     this.load.image('playerR', 'tardigrado_R_00.png');
     this.load.image('playerL', 'tardigrado_L_00.png');
+
+    // Player camminata (2 frame ciascuno)
     this.load.image('playerR_walk1', 'tardigrado_R_01.png');
     this.load.image('playerR_walk2', 'tardigrado_R_02.png');
     this.load.image('playerL_walk1', 'tardigrado_L_01.png');
@@ -105,12 +104,10 @@ class MainScene extends Phaser.Scene {
   init(data) {
     this.lives = data.lives ?? 3;
     this.score = data.score ?? 0;
-    this.level = data.level ?? 1;
   }
 
   create() {
-    let bgKey = this.level === 1 ? 'sky' : 'sky_v2';
-    const bg = this.add.image(0, 0, bgKey).setOrigin(0).setScrollFactor(0);
+    const bg = this.add.image(0, 0, 'sky').setOrigin(0).setScrollFactor(0);
     bg.displayWidth = this.scale.width;
     bg.displayHeight = this.scale.height;
     bg.setDepth(-10);
@@ -125,43 +122,46 @@ class MainScene extends Phaser.Scene {
     this.enemySound = this.sound.add('enemy');
 
     // Piattaforme
-    let groundKey = this.level === 1 ? 'ground' : 'ground_v2';
     this.platforms = this.physics.add.staticGroup();
-    for (let x = 0; x < this.levelWidth; x += 400)
-      this.platforms.create(x, 580, groundKey).setScale(2).refreshBody();
+	for (let x = 0; x < this.levelWidth; x += 400)
+	    this.platforms.create(x, 580, 'ground').setScale(2).refreshBody();
 
-    this.platforms.create(600, 440, groundKey);
-    this.platforms.create(900, 330, groundKey);
-    this.platforms.create(1300, 222, groundKey);
-    this.platforms.create(1700, 385, groundKey);
-    this.platforms.create(2200, 275, groundKey);
-    this.platforms.create(2600, 165, groundKey);
+	this.platforms.create(600, 440, 'ground');
+	this.platforms.create(900, 330, 'ground');
+	this.platforms.create(1300, 222, 'ground');
+	this.platforms.create(1700, 385, 'ground');
+	this.platforms.create(2200, 275, 'ground');
+	this.platforms.create(2600, 165, 'ground');
 
-    // Player
+    // --- PLAYER --- 
     const groundPlatform = this.platforms.getChildren().find(p => p.y === 580);
     const groundTop = groundPlatform.y - groundPlatform.displayHeight / 2;
 
-    this.player = this.physics.add.sprite(100, 0, 'playerR');
+    this.player = this.physics.add.sprite(100, 0, 'playerR'); // y temporaneo
     this.player.setScale(0.6);
     this.player.setBounce(0.1);
     this.player.setCollideWorldBounds(true);
     this.player.facing = 'right';
 
+    // Body corretto rispetto alla scala
     const bodyWidth = 60 * 0.6;
     const bodyHeight = 90 * 0.6;
     this.player.body.setSize(bodyWidth, bodyHeight);
     this.player.body.setOffset(20 * 0.6, 20 * 0.6);
+
+    // Posiziona player correttamente sul terreno
     this.player.y = groundTop - bodyHeight / 2;
 
     this.physics.add.collider(this.player, this.platforms);
 
+    // Animazioni player
     this.anims.create({ key: 'walkR', frames: [{ key: 'playerR_walk1' }, { key: 'playerR_walk2' }], frameRate: 6, repeat: -1 });
     this.anims.create({ key: 'walkL', frames: [{ key: 'playerL_walk1' }, { key: 'playerL_walk2' }], frameRate: 6, repeat: -1 });
 
     // Controlli
     this.cursors = this.input.keyboard.createCursorKeys();
     this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
-    this.fireKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ALT);
+    this.fireKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F);
 
     // Proiettili
     this.bullets = this.physics.add.group();
@@ -174,15 +174,11 @@ class MainScene extends Phaser.Scene {
     const totalEnemies = highPlatforms.length + 2;
     const numAlt = Math.floor(totalEnemies / 2);
 
-    let enemyTex1 = this.level === 1 ? 'enemy' : 'enemyAlt';
-    let enemyTex2 = this.level === 1 ? 'enemyAlt' : 'enemy2';
-
     const textures = [];
-    for (let i = 0; i < numAlt; i++) textures.push(enemyTex1);
-    for (let i = numAlt; i < totalEnemies; i++) textures.push(enemyTex2);
+    for (let i = 0; i < numAlt; i++) textures.push('enemyAlt');
+    for (let i = numAlt; i < totalEnemies; i++) textures.push('enemy');
     Phaser.Utils.Array.Shuffle(textures);
 
-    // Nemici piattaforme alte
     highPlatforms.forEach((platform, i) => {
       const tex = textures.shift();
       let e = this.enemies.create(600 + i * 300, 0, tex);
@@ -191,17 +187,6 @@ class MainScene extends Phaser.Scene {
       e.y = platformTop - e.displayHeight / 2;
       e.setVelocityX(100);
       e.setCollideWorldBounds(true);
-
-      // Pulsazione nemici
-	this.tweens.add({
-		targets: e,
-		scaleX: 0.14,
-		scaleY: 0.14,
-		yoyo: true,
-		repeat: -1,
-		duration: 600,
-		ease: 'Sine.easeInOut'
-		});
     });
 
     const groundY = groundTop;
@@ -217,25 +202,20 @@ class MainScene extends Phaser.Scene {
       e.homeX = e.x;
       e.patrolRange = 80;
       e.setVelocityX(50);
-
-      // Pulsazione
-      this.tweens.add({
-        targets: e,
-        scaleX: 0.125,
-        scaleY: 0.125,
-        yoyo: true,
-        repeat: -1,
-        duration: 500,
-        ease: 'Sine.easeInOut'
-      });
     });
 
     this.physics.add.collider(this.enemies, this.platforms);
     this.physics.add.overlap(this.player, this.enemies, this.playerVsEnemy, null, this);
+
+    // --- COLLISIONE BULLETS ---
     this.physics.add.overlap(this.bullets, this.enemies, this.bulletHitsEnemy, null, this);
 
     // Stelle
-    this.stars = this.physics.add.group({ key: 'star', repeat: 20, setXY: { x: 100, y: 0, stepX: 130 } });
+    this.stars = this.physics.add.group({
+      key: 'star',
+      repeat: 20,
+      setXY: { x: 100, y: 0, stepX: 130 }
+    });
     this.stars.children.iterate(s => s.setBounceY(Phaser.Math.FloatBetween(0.4, 0.8)));
     this.physics.add.collider(this.stars, this.platforms);
     this.physics.add.overlap(this.player, this.stars, this.collectStar, null, this);
@@ -243,15 +223,6 @@ class MainScene extends Phaser.Scene {
     // UI
     this.uiText = this.add.text(16, 16, '', { fontSize: '20px', fill: '#fff' }).setScrollFactor(0).setDepth(1000);
     this.updateUI();
-
-    // Level Title
-    this.add.text(this.scale.width / 2, 40, 'LIVELLO ' + this.level, { 
-      fontSize: '32px', 
-      fill: '#ffffff', 
-      fontFamily: 'monospace',
-      stroke: '#000000',
-      strokeThickness: 4
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(1000);
 
     // Camera
     this.cameras.main.setBounds(0, 0, this.levelWidth, this.scale.height);
@@ -262,14 +233,15 @@ class MainScene extends Phaser.Scene {
   update() {
     const p = this.player.body;
 
+    // --- Gamepad ---
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
     let pad = null;
     for (let gp of pads) if (gp && gp.connected) pad = gp;
 
-    let left = this.cursors.left.isDown;
+    let left  = this.cursors.left.isDown;
     let right = this.cursors.right.isDown;
-    let jump = this.spaceKey.isDown;
-    let fire = this.fireKey.isDown;
+    let jump  = this.spaceKey.isDown;
+    let fire  = this.fireKey.isDown;
 
     if (pad) {
       const axisX = pad.axes[0];
@@ -279,40 +251,41 @@ class MainScene extends Phaser.Scene {
       if (pad.buttons[1].pressed) fire = true;
     }
 
-    // Movimento player
+    // --- Movimento + Animazioni ---
     if (left) {
       p.setVelocityX(-220);
       this.player.facing = 'left';
-      if (!this.player.anims.isPlaying || this.player.anims.currentAnim.key !== 'walkL') this.player.play('walkL');
+      if (!this.player.anims.isPlaying || this.player.anims.currentAnim.key !== 'walkL')
+        this.player.play('walkL');
     } else if (right) {
       p.setVelocityX(220);
       this.player.facing = 'right';
-      if (!this.player.anims.isPlaying || this.player.anims.currentAnim.key !== 'walkR') this.player.play('walkR');
+      if (!this.player.anims.isPlaying || this.player.anims.currentAnim.key !== 'walkR')
+        this.player.play('walkR');
     } else {
       p.setVelocityX(0);
-      this.player.setTexture(this.player.facing === 'right' ? 'playerR' : 'playerL');
+      if (this.player.facing === 'right') this.player.setTexture('playerR');
+      else this.player.setTexture('playerL');
     }
 
-    // Salto
+    // --- Salto ---
     if (jump && p.blocked.down) {
       p.setVelocityY(-500);
       this.jumpSound.play();
     }
 
-    // Sparo parabolico
+    // --- Sparo ---
     if (fire && this.time.now > this.lastFired + 300) {
       const dir = this.player.facing === 'right' ? 1 : -1;
       const bullet = this.bullets.create(this.player.x + dir * 40, this.player.y, 'bullet');
-      bullet.setVelocityX(600 * dir);
-      bullet.setVelocityY(-150);
+      bullet.setVelocityX(500 * dir);
       bullet.setScale(0.3);
       bullet.setCollideWorldBounds(false);
-      bullet.body.allowGravity = true;
-      bullet.body.gravity.y = 200;
+      bullet.body.allowGravity = false; // evita di far "volare" il player
       this.lastFired = this.time.now;
     }
 
-    // Nemici piattaforme alte
+    // --- Nemici alte piattaforme ---
     this.enemies.children.iterate(e => {
       if (!this.groundEnemies.includes(e)) {
         if (e.body.blocked.left) e.setVelocityX(100);
@@ -320,20 +293,16 @@ class MainScene extends Phaser.Scene {
       }
     });
 
-    // Nemici terreno
+    // --- Nemici terreno ---
     this.groundEnemies.forEach(e => {
       if (e.x < e.homeX - e.patrolRange) e.setVelocityX(50);
       else if (e.x > e.homeX + e.patrolRange) e.setVelocityX(-50);
     });
 
-    // Vittoria
+    // --- Vittoria ---
     if (this.player.x > this.levelWidth - 100) {
       this.victorySound.play();
-      if (this.level === 1) {
-        this.scene.start('MainScene', { level: 2, lives: this.lives, score: this.score });
-      } else {
-        this.scene.start('WinScene', { score: this.score });
-      }
+      this.scene.start('WinScene', { score: this.score });
     }
   }
 
@@ -401,7 +370,7 @@ class GameOverScene extends Phaser.Scene {
     this.add.text(this.scale.width / 2, 250, '💀 GAME OVER 💀', { fontSize: '50px', fill: '#ff4444' }).setOrigin(0.5);
     this.add.text(this.scale.width / 2, 320, 'Punteggio: ' + data.score, { fontSize: '24px', fill: '#fff' }).setOrigin(0.5);
     this.add.text(this.scale.width / 2, 400, 'Premi SPAZIO per ricominciare', { fontSize: '20px', fill: '#aaa' }).setOrigin(0.5);
-    this.input.keyboard.once('keydown-SPACE', () => this.scene.start('MainScene', { level: 1, lives: 3, score: 0 }));
+    this.input.keyboard.once('keydown-SPACE', () => this.scene.start('MainScene', { lives: 3, score: 0 }));
   }
 }
 
@@ -412,7 +381,7 @@ class WinScene extends Phaser.Scene {
     this.add.text(this.scale.width / 2, 250, '🎉 HAI VINTO! 🎉', { fontSize: '40px', fill: '#44ff44' }).setOrigin(0.5);
     this.add.text(this.scale.width / 2, 320, 'Punteggio: ' + data.score, { fontSize: '24px', fill: '#fff' }).setOrigin(0.5);
     this.add.text(this.scale.width / 2, 400, 'Premi SPAZIO per ricominciare', { fontSize: '20px', fill: '#aaa' }).setOrigin(0.5);
-    this.input.keyboard.once('keydown-SPACE', () => this.scene.start('MainScene', { level: 1, lives: 3, score: 0 }));
+    this.input.keyboard.once('keydown-SPACE', () => this.scene.start('MainScene', { lives: 3, score: 0 }));
   }
 }
 

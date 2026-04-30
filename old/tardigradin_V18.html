@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <title>Super Tardigradin</title>
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.js"></script>
+  <style>
+    body { margin: 0; background: #000; }
+    canvas { display: block; margin: auto; }
+  </style>
+</head>
+<body>
+<script>
+class BootScene extends Phaser.Scene {
+  constructor() { super('BootScene'); }
+
+  preload() {
+    this.load.audio('jump', 'boing.wav');
+    this.load.audio('victory', 'victory.wav');
+    this.load.audio('gameover', 'gameover.wav');
+    this.load.audio('start', 'start.wav');
+    this.load.audio('star', 'star.wav');
+    this.load.audio('death', 'death.wav');
+    this.load.audio('enemy', 'enemy.wav');
+  }
+
+  create() {
+    this.cameras.main.setBackgroundColor('#001122');
+    this.add.rectangle(400, 300, 800, 600, 0x001122);
+    this.tweens.add({
+      targets: this.cameras.main,
+      onUpdate: (tween) => {
+        const v = Math.sin(tween.progress * Math.PI * 2) * 30 + 30;
+        this.cameras.main.setBackgroundColor(Phaser.Display.Color.GetColor(0, v, v * 3));
+      },
+      duration: 4000,
+      yoyo: true,
+      repeat: -1
+    });
+
+	this.add.text(400, 180, '🦠 SUPER TARDIGRADIN 🦠', {
+		fontSize: '48px',
+		fill: '#00ffcc',
+		fontFamily: 'monospace',
+		stroke: '#003333',
+		strokeThickness: 6,
+		lineHeight: 60
+	}).setOrigin(0.5);
+
+    this.add.text(400, 250, '⭐ 💧 🌿 🌈 ⭐', {
+		fontSize: '40px',
+		fill: '#ffff88',
+		lineHeight: 48
+	}).setOrigin(0.5);
+
+    const startText = this.add.text(400, 380, 'Clicca o premi un tasto per iniziare', {
+      fontSize: '22px',
+      fill: '#ffffff',
+      fontFamily: 'monospace'
+    }).setOrigin(0.5);
+
+    this.tweens.add({
+      targets: startText,
+      alpha: { from: 1, to: 0.3 },
+      duration: 1000,
+      yoyo: true,
+      repeat: -1
+    });
+
+    const unlockAudio = () => {
+      if (this.sound.context.state === 'suspended') this.sound.context.resume();
+      this.sound.play('start');
+      this.input.off('pointerdown', unlockAudio);
+      this.input.keyboard.off('keydown', unlockAudio);
+      this.scene.start('MainScene');
+    };
+    this.input.once('pointerdown', unlockAudio);
+    this.input.keyboard.once('keydown', unlockAudio);
+  }
+}
+
+class MainScene extends Phaser.Scene {
+  constructor() { super('MainScene'); }
+
+  preload() {
+    this.load.image('ground', 'platform.png');
+    this.load.image('enemy', 'mostro.png');
+    this.load.image('star', 'https://labs.phaser.io/assets/demoscene/star.png');
+    this.load.image('playerR', 'tardigrado_R.png');
+    this.load.image('playerL', 'tardigrado_L.png');
+  }
+
+  init(data) {
+    this.lives = data.lives ?? 3;
+    this.score = data.score ?? 0;
+  }
+
+  create() {
+    this.physics.world.gravity.y = 900;
+    this.levelWidth = 3000;
+
+    // Suoni
+    this.jumpSound = this.sound.add('jump');
+    this.victorySound = this.sound.add('victory');
+    this.starSound = this.sound.add('star');
+    this.deathSound = this.sound.add('death');
+    this.enemySound = this.sound.add('enemy');
+
+    // Piattaforme
+    this.platforms = this.physics.add.staticGroup();
+    for (let x = 0; x < this.levelWidth; x += 400)
+      this.platforms.create(x, 580, 'ground').setScale(2).refreshBody();
+    this.platforms.create(600, 450, 'ground');
+    this.platforms.create(900, 350, 'ground');
+    this.platforms.create(1300, 250, 'ground');
+    this.platforms.create(1700, 400, 'ground');
+    this.platforms.create(2200, 300, 'ground');
+    this.platforms.create(2600, 200, 'ground');
+
+    // Giocatore
+    this.player = this.physics.add.sprite(100, 450, 'playerR');
+    this.player.setScale(0.6);
+    this.player.setBounce(0.1);
+    this.player.setCollideWorldBounds(true);
+    this.player.facing = 'right';
+    this.player.invulnerable = false;
+    this.physics.add.collider(this.player, this.platforms);
+    this.player.body.setSize(this.player.width * 0.6, this.player.height * 0.8);
+
+    this.cursors = this.input.keyboard.createCursorKeys();
+    this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+
+    // Nemici — 👇 SOLO QUESTA PARTE MODIFICATA
+    this.enemies = this.physics.add.group();
+    const enemyData = [
+  { x: 200, platformIndex: 0 },   // piattaforma a terra
+  { x: 600, platformIndex: 7 },   // prima piattaforma rialzata
+  { x: 900, platformIndex: 8 },
+  { x: 1300, platformIndex: 9 },
+  { x: 1700, platformIndex: 10 },
+  { x: 2200, platformIndex: 11 },
+  { x: 2600, platformIndex: 12 }
+];
+
+enemyData.forEach(d => {
+  let platform = this.platforms.getChildren()[d.platformIndex];
+  if (!platform) return;
+  let e = this.enemies.create(d.x, 0, 'enemy'); // y temporanea
+  e.setScale(0.12);
+  e.body.setSize(e.width * 0.8, e.height * 0.8);
+  // calcola il top della piattaforma considerando la scala
+  let platformTop = platform.y - platform.displayHeight / 2;
+  e.y = platformTop - e.displayHeight / 2; // posiziona sopra la piattaforma
+  e.setCollideWorldBounds(true);
+  e.setBounce(0, 0);
+  e.setVelocityX(100);
+});
+
+
+
+
+    this.physics.add.collider(this.enemies, this.platforms);
+    this.physics.add.overlap(this.player, this.enemies, this.playerVsEnemy, null, this);
+
+    // Stelle
+    this.stars = this.physics.add.group({
+      key: 'star',
+      repeat: 20,
+      setXY: { x: 100, y: 0, stepX: 130 }
+    });
+    this.stars.children.iterate(s => s.setBounceY(Phaser.Math.FloatBetween(0.4, 0.8)));
+    this.physics.add.collider(this.stars, this.platforms);
+    this.physics.add.overlap(this.player, this.stars, this.collectStar, null, this);
+
+    // UI
+    this.uiText = this.add.text(16, 16, '', { fontSize: '20px', fill: '#fff' }).setScrollFactor(0);
+    this.updateUI();
+
+    // Camera
+    this.cameras.main.setBounds(0, 0, this.levelWidth, 600);
+    this.physics.world.setBounds(0, 0, this.levelWidth, 600);
+    this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
+  }
+
+  update() {
+    const p = this.player.body;
+    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    let pad = null;
+    for (let gp of pads) if (gp && gp.connected) { pad = gp; break; }
+
+    let left = this.cursors.left.isDown;
+    let right = this.cursors.right.isDown;
+    let jump = this.spaceKey.isDown;
+
+    if (pad) {
+      const axisX = pad.axes[0];
+      if (axisX < -0.3) left = true;
+      else if (axisX > 0.3) right = true;
+      if (pad.buttons[2].pressed) jump = true;
+    }
+
+    if (left) {
+      p.setVelocityX(-220);
+      if (this.player.facing !== 'left') {
+        this.player.setTexture('playerL');
+        this.player.facing = 'left';
+      }
+    } else if (right) {
+      p.setVelocityX(220);
+      if (this.player.facing !== 'right') {
+        this.player.setTexture('playerR');
+        this.player.facing = 'right';
+      }
+    } else {
+      p.setVelocityX(0);
+    }
+
+    if (jump && p.blocked.down) {
+      p.setVelocityY(-450);
+      this.jumpSound.play();
+    }
+
+    this.enemies.children.iterate(e => {
+      if (e.body.blocked.left) e.setVelocityX(100);
+      else if (e.body.blocked.right) e.setVelocityX(-100);
+    });
+
+    if (this.player.x > this.levelWidth - 100) {
+      this.victorySound.play();
+      this.scene.start('WinScene', { score: this.score });
+    }
+  }
+
+  collectStar(player, star) {
+    star.disableBody(true, true);
+    this.starSound.play();
+    this.score += 10;
+    this.updateUI();
+  }
+
+  updateUI() {
+    this.uiText.setText('❤️ ' + this.lives + '   ⭐ ' + this.score);
+  }
+
+  playerVsEnemy(player, enemy) {
+    if (player.invulnerable) return;
+    const pb = player.body;
+    const eb = enemy.body;
+    const playerAbove = pb.velocity.y > 0 && pb.bottom <= eb.top + 10;
+
+    if (playerAbove) {
+      this.enemySound.play();
+      enemy.setTint(0xff0000);
+      enemy.body.enable = false;
+      this.tweens.add({
+        targets: enemy,
+        alpha: 0,
+        duration: 400,
+        onComplete: () => enemy.destroy()
+      });
+      pb.setVelocityY(-300);
+      this.score += 50;
+      this.updateUI();
+    } else {
+      player.invulnerable = true;
+      this.lives--;
+      this.deathSound.play();
+      this.updateUI();
+      player.setTint(0xff8888);
+      player.body.enable = false;
+      this.cameras.main.shake(150, 0.01);
+      if (this.lives > 0) {
+        const respawnX = player.x;
+        const respawnY = player.y;
+        this.time.delayedCall(800, () => {
+          player.clearTint();
+          player.body.enable = true;
+          player.setPosition(respawnX, respawnY - 20);
+          player.invulnerable = false;
+        });
+      } else {
+        this.time.delayedCall(800, () => {
+          this.scene.start('GameOver', { score: this.score });
+        });
+      }
+    }
+  }
+}
+
+class GameOverScene extends Phaser.Scene {
+  constructor() { super('GameOver'); }
+  create(data) {
+    this.sound.play('gameover');
+    this.add.text(400, 250, '💀 GAME OVER 💀', { fontSize: '50px', fill: '#ff4444', fontFamily: 'Segoe UI Emoji, monospace' }).setOrigin(0.5);
+    this.add.text(400, 320, 'Punteggio: ' + data.score, { fontSize: '24px', fill: '#fff' }).setOrigin(0.5);
+    this.add.text(400, 400, 'Premi SPAZIO per ricominciare', { fontSize: '20px', fill: '#aaa' }).setOrigin(0.5);
+    this.input.keyboard.once('keydown-SPACE', () => {
+      this.scene.start('MainScene', { lives: 3, score: 0 });
+    });
+  }
+}
+
+class WinScene extends Phaser.Scene {
+  constructor() { super('WinScene'); }
+  create(data) {
+    this.sound.play('victory');
+    this.add.text(400, 250, '🎉 HAI VINTO! 🎉', { fontSize: '40px', fill: '#44ff44' }).setOrigin(0.5);
+    this.add.text(400, 320, 'Punteggio: ' + data.score, { fontSize: '24px', fill: '#fff' }).setOrigin(0.5);
+    this.add.text(400, 400, 'Premi SPAZIO per ricominciare', { fontSize: '20px', fill: '#aaa' }).setOrigin(0.5);
+    this.input.keyboard.once('keydown-SPACE', () => {
+      this.scene.start('MainScene', { lives: 3, score: 0 });
+    });
+  }
+}
+
+const config = {
+  type: Phaser.AUTO,
+  width: 800,
+  height: 600,
+  physics: { default: 'arcade', arcade: { debug: false } },
+  scene: [BootScene, MainScene, GameOverScene, WinScene]
+};
+
+new Phaser.Game(config);
+</script>
+</body>
+</html>
