@@ -89,7 +89,9 @@ class MainScene extends Phaser.Scene {
     this.load.image('enemy', 'mostro.png');
     this.load.image('enemyAlt', 'mostro_01.png');
     this.load.image('enemy2', 'mostro_02.png');
+    this.load.image('enemy2_R', 'mostro_02_R.png');
     this.load.image('enemy3', 'mostro_03.png');
+    this.load.image('enemy3_R', 'mostro_03_R.png');
 
     // Player
     this.load.image('playerR', 'tardigrado_R_00.png');
@@ -187,6 +189,7 @@ class MainScene extends Phaser.Scene {
     highPlatforms.forEach((platform, i) => {
       const tex = textures.shift();
       let e = this.enemies.create(600 + i * 300, 0, tex);
+      e.baseTex = tex;
       e.setScale(0.12);
       let platformTop = platform.y - platform.displayHeight / 2;
       e.y = platformTop - e.displayHeight / 2;
@@ -212,6 +215,7 @@ class MainScene extends Phaser.Scene {
     ];
 
     this.groundEnemies.forEach(e => {
+      e.baseTex = e.texture.key;
       e.setScale(0.12);
       e.y = groundY - e.displayHeight / 2;
       e.setCollideWorldBounds(true);
@@ -246,13 +250,10 @@ class MainScene extends Phaser.Scene {
     this.updateUI();
 
     // Level Title
-    this.add.text(this.scale.width / 2, 40, 'LIVELLO ' + this.level, { 
-      fontSize: '32px', 
-      fill: '#ffffff', 
-      fontFamily: 'monospace',
-      stroke: '#000000',
-      strokeThickness: 4
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(1000);
+    this.add.text(this.scale.width / 2, 16, 'LIVELLO ' + this.level, { 
+      fontSize: '20px', 
+      fill: '#fff' 
+    }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(1000);
 
     // Camera
     this.cameras.main.setBounds(0, 0, this.levelWidth, this.scale.height);
@@ -325,6 +326,14 @@ class MainScene extends Phaser.Scene {
     this.groundEnemies.forEach(e => {
       if (e.x < e.homeX - e.patrolRange) e.setVelocityX(50);
       else if (e.x > e.homeX + e.patrolRange) e.setVelocityX(-50);
+    });
+
+    // Cambio texture base direzione
+    this.enemies.children.iterate(e => {
+      if (e.baseTex === 'enemy2' || e.baseTex === 'enemy3') {
+        if (e.body.velocity.x > 0) e.setTexture(e.baseTex + '_R');
+        else if (e.body.velocity.x < 0) e.setTexture(e.baseTex);
+      }
     });
 
     // Vittoria
