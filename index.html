@@ -168,6 +168,7 @@ class MainScene extends Phaser.Scene {
 
     // Proiettili
     this.bullets = this.physics.add.group();
+    this.enemyBullets = this.physics.add.group();
     this.lastFired = 0;
 
     // Nemici
@@ -238,6 +239,7 @@ class MainScene extends Phaser.Scene {
     this.physics.add.collider(this.enemies, this.platforms);
     this.physics.add.overlap(this.player, this.enemies, this.playerVsEnemy, null, this);
     this.physics.add.overlap(this.bullets, this.enemies, this.bulletHitsEnemy, null, this);
+    this.physics.add.overlap(this.player, this.enemyBullets, this.playerHitByEnemyBullet, null, this);
 
     // Stelle
     this.stars = this.physics.add.group({ key: 'star', repeat: 20, setXY: { x: 100, y: 0, stepX: 130 } });
@@ -328,11 +330,27 @@ class MainScene extends Phaser.Scene {
       else if (e.x > e.homeX + e.patrolRange) e.setVelocityX(-50);
     });
 
-    // Cambio texture base direzione
+    // Cambio texture base direzione e sparo nemici livello 2
     this.enemies.children.iterate(e => {
       if (e.baseTex === 'enemy2' || e.baseTex === 'enemy3') {
         if (e.body.velocity.x > 0) e.setTexture(e.baseTex + '_R');
         else if (e.body.velocity.x < 0) e.setTexture(e.baseTex);
+        
+        // Sparo verso il giocatore
+        if (e.active && e.body.enable) {
+          const dist = Phaser.Math.Distance.Between(e.x, e.y, this.player.x, this.player.y);
+          if (dist < 400) {
+            if (!e.lastFired || this.time.now > e.lastFired + 2000) {
+              e.lastFired = this.time.now;
+              const bullet = this.enemyBullets.create(e.x, e.y, 'bullet');
+              bullet.setTint(0xff3300);
+              bullet.setScale(0.3);
+              bullet.body.allowGravity = false;
+              const angle = Phaser.Math.Angle.Between(e.x, e.y, this.player.x, this.player.y);
+              this.physics.velocityFromRotation(angle, 250, bullet.body.velocity);
+            }
+          }
+        }
       }
     });
 
@@ -401,6 +419,30 @@ class MainScene extends Phaser.Scene {
     this.tweens.add({ targets: enemy, alpha: 0, duration: 400, onComplete: () => enemy.destroy() });
     this.score += 50;
     this.updateUI();
+  }
+
+  playerHitByEnemyBullet(player, bullet) {
+    bullet.destroy();
+    if (player.invulnerable) return;
+
+    player.invulnerable = true;
+    this.lives--;
+    this.deathSound.play();
+    this.updateUI();
+    player.setTint(0xff8888);
+    player.body.enable = false;
+    this.cameras.main.shake(150, 0.01);
+    if (this.lives > 0) {
+      const rx = player.x, ry = player.y;
+      this.time.delayedCall(800, () => {
+        player.clearTint();
+        player.body.enable = true;
+        player.setPosition(rx, ry - 20);
+        player.invulnerable = false;
+      });
+    } else {
+      this.time.delayedCall(800, () => this.scene.start('GameOver', { score: this.score }));
+    }
   }
 }
 
