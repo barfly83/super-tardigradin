@@ -242,7 +242,8 @@ class MainScene extends Phaser.Scene {
     } else {
       // BOSS
       this.boss = this.physics.add.sprite(1400, 300, 'boss08');
-      this.boss.setScale(0.5);
+      this.boss.setScale(0.2);
+      this.boss.refreshBody();
       this.boss.lives = 8;
       this.boss.lastFired = 0;
       this.boss.setCollideWorldBounds(true);
@@ -428,6 +429,11 @@ class MainScene extends Phaser.Scene {
     const playerAbove = pb.velocity.y > 0 && pb.bottom <= enemy.body.top + 10;
 
     if (playerAbove) {
+      if (enemy === this.boss) {
+        this.bulletHitsBoss(null, enemy);
+        pb.setVelocityY(-300);
+        return;
+      }
       this.enemySound.play();
       enemy.setTint(0xff0000);
       enemy.body.enable = false;
@@ -491,7 +497,7 @@ class MainScene extends Phaser.Scene {
     }
   }
   bulletHitsBoss(bullet, boss) {
-    bullet.destroy();
+    if (bullet) bullet.destroy();
     if (!boss.active || boss.invulnerable) return;
 
     this.enemySound.play();
