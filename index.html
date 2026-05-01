@@ -508,11 +508,14 @@ class MainScene extends Phaser.Scene {
       this.time.delayedCall(800, () => this.scene.start('GameOver', { score: this.score }));
     }
   }
-  bulletHitsBoss(bullet, boss) {
-    if (bullet) bullet.destroy();
+  bulletHitsBoss(obj1, obj2) {
+    let actualBoss = obj1 === this.boss ? obj1 : (obj2 === this.boss ? obj2 : this.boss);
+    let actualBullet = obj1 !== actualBoss ? obj1 : obj2;
+
+    if (actualBullet && actualBullet.texture && actualBullet.texture.key === 'bullet') {
+        actualBullet.destroy();
+    }
     
-    // Fallback di sicurezza: assicuriamoci che "boss" sia davvero il boss e abbia le vite valide
-    let actualBoss = boss === this.boss ? boss : (bullet === this.boss ? bullet : this.boss);
     if (!actualBoss || !actualBoss.active || actualBoss.invulnerable) return;
 
     if (typeof actualBoss.lives !== 'number' || isNaN(actualBoss.lives)) {
