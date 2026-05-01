@@ -241,6 +241,7 @@ class MainScene extends Phaser.Scene {
     });
     } else {
       // BOSS
+      this.groundEnemies = [];
       this.boss = this.physics.add.sprite(1400, 300, 'boss08');
       this.boss.setScale(0.2);
       this.boss.refreshBody();
@@ -344,20 +345,25 @@ class MainScene extends Phaser.Scene {
 
     // Nemici piattaforme alte
     this.enemies.children.iterate(e => {
-      if (!this.groundEnemies.includes(e)) {
+      if (!e || !e.active || !e.body) return;
+      if (this.groundEnemies && !this.groundEnemies.includes(e)) {
         if (e.body.blocked.left) e.setVelocityX(100);
         else if (e.body.blocked.right) e.setVelocityX(-100);
       }
     });
 
     // Nemici terreno
-    this.groundEnemies.forEach(e => {
-      if (e.x < e.homeX - e.patrolRange) e.setVelocityX(50);
-      else if (e.x > e.homeX + e.patrolRange) e.setVelocityX(-50);
-    });
+    if (this.groundEnemies) {
+      this.groundEnemies.forEach(e => {
+        if (!e || !e.active || !e.body) return;
+        if (e.x < e.homeX - e.patrolRange) e.setVelocityX(50);
+        else if (e.x > e.homeX + e.patrolRange) e.setVelocityX(-50);
+      });
+    }
 
     // Cambio texture base direzione e sparo nemici livello 2
     this.enemies.children.iterate(e => {
+      if (!e || !e.active || !e.body) return;
       if (e.baseTex === 'enemy2' || e.baseTex === 'enemy3') {
         if (e.body.velocity.x > 0) e.setTexture(e.baseTex + '_R');
         else if (e.body.velocity.x < 0) e.setTexture(e.baseTex);
@@ -366,16 +372,21 @@ class MainScene extends Phaser.Scene {
         if (e.active && e.body.enable) {
           const dist = Phaser.Math.Distance.Between(e.x, e.y, this.player.x, this.player.y);
           if (dist < 400) {
-            if (!e.lastFired || this.time.now > e.lastFired + 2000) {
-              e.lastFired = this.time.now;
-              const dir = this.player.x < e.x ? -1 : 1;
-              const bullet = this.enemyBullets.create(e.x + dir * 20, e.y, 'bullet');
-              bullet.setTint(0xff3300);
-              bullet.setScale(0.3);
-              bullet.body.allowGravity = true;
-              bullet.body.gravity.y = 200;
-              bullet.setVelocityX(350 * dir);
-              bullet.setVelocityY(-150);
+            const facingRight = e.body.velocity.x > 0;
+            const playerIsRight = this.player.x > e.x;
+            
+            if ((facingRight && playerIsRight) || (!facingRight && !playerIsRight)) {
+              if (!e.lastFired || this.time.now > e.lastFired + 2000) {
+                e.lastFired = this.time.now;
+                const dir = playerIsRight ? 1 : -1;
+                const bullet = this.enemyBullets.create(e.x + dir * 20, e.y, 'bullet');
+                bullet.setTint(0xff3300);
+                bullet.setScale(0.3);
+                bullet.body.allowGravity = true;
+                bullet.body.gravity.y = 200;
+                bullet.setVelocityX(350 * dir);
+                bullet.setVelocityY(-150);
+              }
             }
           }
         }
@@ -499,30 +510,37 @@ class MainScene extends Phaser.Scene {
   }
   bulletHitsBoss(bullet, boss) {
     if (bullet) bullet.destroy();
-    if (!boss.active || boss.invulnerable) return;
+    
+    // Fallback di sicurezza: assicuriamoci che "boss" sia davvero il boss e abbia le vite valide
+    let actualBoss = boss === this.boss ? boss : (bullet === this.boss ? bullet : this.boss);
+    if (!actualBoss || !actualBoss.active || actualBoss.invulnerable) return;
+
+    if (typeof actualBoss.lives !== 'number' || isNaN(actualBoss.lives)) {
+        actualBoss.lives = 8;
+    }
 
     this.enemySound.play();
-    boss.lives--;
+    actualBoss.lives--;
     this.score += 100;
     this.updateUI();
     this.updateBossHealthBar();
 
-    if (boss.lives > 0) {
-      boss.setTexture(`boss0${boss.lives}`);
-      boss.invulnerable = true;
-      boss.setTint(0xffaaaa);
+    if (actualBoss.lives > 0) {
+      actualBoss.setTexture(`boss0${actualBoss.lives}`);
+      actualBoss.invulnerable = true;
+      actualBoss.setTint(0xffaaaa);
       this.time.delayedCall(1000, () => {
-        if (boss.active) {
-          boss.clearTint();
-          boss.invulnerable = false;
+        if (actualBoss.active) {
+          actualBoss.clearTint();
+          actualBoss.invulnerable = false;
         }
       });
     } else {
-      boss.body.enable = false;
-      boss.setTint(0xff0000);
+      actualBoss.body.enable = false;
+      actualBoss.setTint(0xff0000);
       this.bossHealthBar.clear();
-      this.tweens.add({ targets: boss, alpha: 0, duration: 1000, onComplete: () => {
-        boss.destroy();
+      this.tweens.add({ targets: actualBoss, alpha: 0, duration: 1000, onComplete: () => {
+        actualBoss.destroy();
         this.victorySound.play();
         this.scene.start('WinScene', { score: this.score });
       }});
