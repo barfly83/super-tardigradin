@@ -92,6 +92,9 @@ class MainScene extends Phaser.Scene {
     this.load.image('enemy2_R', 'mostro_02_R.png');
     this.load.image('enemy3', 'mostro_03.png');
     this.load.image('enemy3_R', 'mostro_03_R.png');
+    for (let i = 1; i <= 8; i++) {
+      this.load.image(`boss0${i}`, `boss0${i}.png`);
+    }
 
     // Player
     this.load.image('playerR', 'tardigrado_R_00.png');
@@ -119,7 +122,7 @@ class MainScene extends Phaser.Scene {
     bg.setDepth(-10);
 
     this.physics.world.gravity.y = 900;
-    this.levelWidth = 3000;
+    this.levelWidth = this.level === 3 ? 1600 : 3000;
 
     this.jumpSound = this.sound.add('jump');
     this.victorySound = this.sound.add('victory');
@@ -173,7 +176,8 @@ class MainScene extends Phaser.Scene {
 
     // Nemici
     this.enemies = this.physics.add.group();
-    let highPlatforms = this.platforms.getChildren().filter(p => p.y < 580);
+    if (this.level !== 3) {
+      let highPlatforms = this.platforms.getChildren().filter(p => p.y < 580);
 
     const totalEnemies = highPlatforms.length + 2;
     const numAlt = Math.floor(totalEnemies / 2);
@@ -235,6 +239,24 @@ class MainScene extends Phaser.Scene {
         ease: 'Sine.easeInOut'
       });
     });
+    } else {
+      // BOSS
+      this.boss = this.physics.add.sprite(1400, 300, 'boss08');
+      this.boss.setScale(0.5);
+      this.boss.lives = 8;
+      this.boss.lastFired = 0;
+      this.boss.setCollideWorldBounds(true);
+      this.boss.setBounce(0.2);
+      this.boss.setVelocityX(-150);
+      
+      this.physics.add.collider(this.boss, this.platforms);
+      this.physics.add.overlap(this.player, this.boss, this.playerVsEnemy, null, this);
+      this.physics.add.overlap(this.bullets, this.boss, this.bulletHitsBoss, null, this);
+
+      // Boss Health Bar
+      this.bossHealthBar = this.add.graphics().setScrollFactor(0).setDepth(1000);
+      this.updateBossHealthBar();
+    }
 
     this.physics.add.collider(this.enemies, this.platforms);
     this.physics.add.overlap(this.player, this.enemies, this.playerVsEnemy, null, this);
@@ -358,11 +380,31 @@ class MainScene extends Phaser.Scene {
       }
     });
 
+    // Boss logic
+    if (this.level === 3 && this.boss && this.boss.active) {
+      if (this.boss.body.blocked.left) this.boss.setVelocityX(150);
+      else if (this.boss.body.blocked.right) this.boss.setVelocityX(-150);
+
+      if (this.time.now > this.boss.lastFired + 4000) {
+        this.boss.lastFired = this.time.now;
+        const dir = this.player.x < this.boss.x ? -1 : 1;
+        const bullet = this.enemyBullets.create(this.boss.x + dir * 50, this.boss.y, 'bullet');
+        bullet.setTint(0xff00ff);
+        bullet.setScale(0.5);
+        bullet.body.allowGravity = true;
+        bullet.body.gravity.y = 200;
+        bullet.setVelocityX(400 * dir);
+        bullet.setVelocityY(-200);
+      }
+    }
+
     // Vittoria
-    if (this.player.x > this.levelWidth - 100) {
+    if (this.level !== 3 && this.player.x > this.levelWidth - 100) {
       this.victorySound.play();
       if (this.level === 1) {
         this.scene.start('MainScene', { level: 2, lives: this.lives, score: this.score });
+      } else if (this.level === 2) {
+        this.scene.start('MainScene', { level: 3, lives: this.lives, score: this.score });
       } else {
         this.scene.start('WinScene', { score: this.score });
       }
@@ -447,6 +489,55 @@ class MainScene extends Phaser.Scene {
     } else {
       this.time.delayedCall(800, () => this.scene.start('GameOver', { score: this.score }));
     }
+  }
+  bulletHitsBoss(bullet, boss) {
+    bullet.destroy();
+    if (!boss.active || boss.invulnerable) return;
+
+    this.enemySound.play();
+    boss.lives--;
+    this.score += 100;
+    this.updateUI();
+    this.updateBossHealthBar();
+
+    if (boss.lives > 0) {
+      boss.setTexture(`boss0${boss.lives}`);
+      boss.invulnerable = true;
+      boss.setTint(0xffaaaa);
+      this.time.delayedCall(200, () => {
+        boss.clearTint();
+        boss.invulnerable = false;
+      });
+    } else {
+      boss.body.enable = false;
+      boss.setTint(0xff0000);
+      this.bossHealthBar.clear();
+      this.tweens.add({ targets: boss, alpha: 0, duration: 1000, onComplete: () => {
+        boss.destroy();
+        this.victorySound.play();
+        this.scene.start('WinScene', { score: this.score });
+      }});
+    }
+  }
+
+  updateBossHealthBar() {
+    if (!this.bossHealthBar || !this.boss) return;
+    this.bossHealthBar.clear();
+    const barWidth = 600;
+    const barHeight = 20;
+    const x = (this.scale.width - barWidth) / 2;
+    const y = 50;
+
+    this.bossHealthBar.fillStyle(0x550000);
+    this.bossHealthBar.fillRect(x, y, barWidth, barHeight);
+    
+    if (this.boss.lives > 0) {
+      this.bossHealthBar.fillStyle(0xff0000);
+      this.bossHealthBar.fillRect(x, y, barWidth * (this.boss.lives / 8), barHeight);
+    }
+    
+    this.bossHealthBar.lineStyle(2, 0xffffff);
+    this.bossHealthBar.strokeRect(x, y, barWidth, barHeight);
   }
 }
 
